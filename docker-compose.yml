@@ -1,0 +1,180 @@
+# version: '3.8'
+
+# services:
+#   car-service:
+#     image: car-service:latest
+#     container_name: car-service
+#     ports:
+#       - "8089:8089"
+#     networks:
+#       - backend
+
+#   client-service:
+#     image: client-service:latest
+#     container_name: client-service
+#     ports:
+#       - "8086:8086"
+#     networks:
+#       - backend
+
+#   consumption-service:
+#     image: consumption-service:latest
+#     container_name: consumption-service
+#     ports:
+#       - "8088:8088"
+#     networks:
+#       - backend
+
+#   gateway-service:
+#     image: gateway-service:latest
+#     container_name: gateway-service
+#     ports:
+#       - "8888:8888"
+#     networks:
+#       - backend
+
+#   angular-frontend:
+#     image: angular-frontend:latest
+#     container_name: angular-frontend
+#     ports:
+#       - "80:80"
+#     networks:
+#       - backend
+
+# networks:
+#   backend:
+
+
+
+
+
+services:
+  # MySQL Database
+  mysql:
+    image: mysql:latest
+    container_name: mysql-container1
+    environment:
+      MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+    ports:
+      - "3306:3306"
+    networks:
+      - microservices-network
+
+  # Consul for Service Discovery
+  consul:
+    image: consul:1.15.4
+    container_name: consul-container
+    ports:
+      - "8500:8500"
+    networks:
+      - microservices-network
+
+  # Spring Cloud Gateway
+  gateway-service:
+    build:
+      context: ./CarbuTrack_Back/gateway
+    ports:
+      - "8888:8888"
+    depends_on:
+      - mysql
+      - consul
+    networks:
+      - microservices-network
+    environment:
+      SPRING_CLOUD_CONSUL_HOST: consul
+      SPRING_CLOUD_CONSUL_PORT: 8500
+      SPRING_CLOUD_CONSUL_DISCOVERY_ENABLED: 'true'
+
+  # Client Service
+  client-service:
+    container_name: client-service
+    build:
+      context: ./CarbuTrack_Back/client
+    ports:
+      - "8086:8086"
+    depends_on:
+      - mysql
+      - consul
+      - gateway-service
+    networks:
+      - microservices-network
+    environment:
+      SPRING_CLOUD_CONSUL_HOST: consul
+      SPRING_CLOUD_CONSUL_PORT: 8500
+      SPRING_CLOUD_CONSUL_DISCOVERY_ENABLED: 'true'
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/clientdb?createDatabaseIfNotExist=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: "root"
+    healthcheck:
+      test: "/usr/bin/mysql --user=root --execute \"SHOW DATABASES;\""
+      interval: 5s
+      timeout: 2s
+      retries: 100
+
+  # Car Service
+  car-service:
+    build:
+      context: ./CarbuTrack_Back/car
+    ports:
+      - "8089:8089"
+    depends_on:
+      - mysql
+      - consul
+      - gateway-service
+    networks:
+      - microservices-network
+    environment:
+      SPRING_CLOUD_CONSUL_HOST: consul
+      SPRING_CLOUD_CONSUL_PORT: 8500
+      SPRING_CLOUD_CONSUL_DISCOVERY_ENABLED: 'true'
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/voituredb?createDatabaseIfNotExist=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: "root"
+    healthcheck:
+      test: "/usr/bin/mysql --user=root --execute \"SHOW DATABASES;\""
+      interval: 5s
+      timeout: 2s
+      retries: 100
+
+
+  # Consumption Service
+  consumption-service:
+    build:
+      context: ./CarbuTrack_Back/consumption
+    ports:
+      - "8088:8088"
+    depends_on:
+      - mysql
+      - consul
+      - gateway-service
+    networks:
+      - microservices-network
+    environment:
+      SPRING_CLOUD_CONSUL_HOST: consul
+      SPRING_CLOUD_CONSUL_PORT: 8500
+      SPRING_CLOUD_CONSUL_DISCOVERY_ENABLED: 'true'
+      SPRING_DATASOURCE_URL: jdbc:mysql://mysql:3306/consumptiondb?createDatabaseIfNotExist=true
+      SPRING_DATASOURCE_USERNAME: root
+      SPRING_DATASOURCE_PASSWORD: "root"
+    healthcheck:
+      test: "/usr/bin/mysql --user=root --execute \"SHOW DATABASES;\""
+      interval: 5s
+      timeout: 2s
+      retries: 100
+
+
+  # PHPMyAdmin
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    environment:
+      PMA_HOST: mysql
+      PMA_PORT: 3306
+      MYSQL_ROOT_PASSWORD: ""
+    ports:
+      - "8090:80"
+    networks:
+      - microservices-network
+
+networks:
+  microservices-network:
+    driver: bridge
